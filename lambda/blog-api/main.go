@@ -26,14 +26,22 @@ type Response struct {
 type Post struct {
 	Id          int    `db:"id" json:"id"`
 	Title       string `db:"title" json:"title"`
+	Teaser      string `db:"teaser" json:"teaser"`
+	TeaserImage string `db:"teaser_image" json:"teaser_image"`
+	HeaderImage string `db:"header_image" json:"header_image"`
 	PublishedAt string `db:"published_at" json:"published_at"`
 	UpdatedAt   string `db:"updated_at" json:"updated_at"`
 	Content     string `db:"content" json:"content"`
 }
 
+var (
+	selectById      = `SELECT id, title, teaser, teaser_image, header_image, published_at, updated_at, content FROM posts WHERE id = ?`
+	selectByFilters = `SELECT id, title, published_at, updated_at, content FROM posts`
+)
+
 func GetPostById(db *sqlx.DB, postId string) (Response, error) {
 	var posts []Post
-	err := db.Select(&posts, `SELECT id, title, published_at, updated_at, content FROM posts WHERE id = ?`, postId)
+	err := db.Select(&posts, selectById, postId)
 	if err != nil {
 		log.Println("Error querying database: ", err)
 		return Response{
@@ -64,7 +72,7 @@ func GetPostById(db *sqlx.DB, postId string) (Response, error) {
 
 func GetPosts(db *sqlx.DB, req DataRequest) (Response, error) {
 	// Default query
-	var query = `SELECT id, title, published_at, updated_at, content FROM posts`
+	var query = selectByFilters
 
 	// Check for valid sort parameter if exists
 	if req.Sort != "" {
