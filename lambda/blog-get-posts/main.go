@@ -6,14 +6,15 @@ import (
 	"github.com/jmoiron/sqlx"
 	"log"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
 
 type DataRequest struct {
-	Sort   string `json:"sort"`
-	Limit  string `json:"limit"`
-	PostId string `json:"postId"`
+	Slug  string `json:"slug"`
+	Sort  string `json:"sort"`
+	Limit string `json:"limit"`
 }
 
 type Response struct {
@@ -26,6 +27,7 @@ type Response struct {
 type Post struct {
 	Id          int    `db:"id" json:"id"`
 	Title       string `db:"title" json:"title"`
+	Slug        string `db:"slug" json:"slug"`
 	Teaser      string `db:"teaser" json:"teaser"`
 	TeaserImage string `db:"teaser_image" json:"teaser_image"`
 	HeaderImage string `db:"header_image" json:"header_image"`
@@ -35,13 +37,28 @@ type Post struct {
 }
 
 var (
-	selectById      = `SELECT id, title, teaser, teaser_image, header_image, published_at, updated_at, content FROM posts WHERE id = ?`
-	selectByFilters = `SELECT id, title, published_at, updated_at, content FROM posts`
+	selectBySlug    = `SELECT id, title, slug, header_image, published_at, updated_at, content FROM posts WHERE slug = ?`
+	selectByFilters = `SELECT id, title, slug, teaser, teaser_image, published_at, updated_at FROM posts`
 )
 
-func GetPostById(db *sqlx.DB, postId string) (Response, error) {
+func isValidSlug(slug string) bool {
+	re := regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+	return re.MatchString(slug)
+}
+
+func GetPostBySlug(db *sqlx.DB, slug string) (Response, error) {
+	// Check for valid slug pattern.
+	if !isValidSlug(slug) {
+		return Response{
+			StatusCode: 400,
+			Message:    "Invalid slug",
+			Count:      0,
+			Posts:      []Post{},
+		}, nil
+	}
+
 	var posts []Post
-	err := db.Select(&posts, selectById, postId)
+	err := db.Select(&posts, selectBySlug, slug)
 	if err != nil {
 		log.Println("Error querying database: ", err)
 		return Response{
@@ -171,9 +188,8 @@ func handler(req DataRequest) (Response, error) {
 	}(db)
 
 	// Get 1 post by id
-	if req.PostId != "" {
-		log.Println("Post id provided")
-		return GetPostById(db, req.PostId)
+	if req.Slug != "" {
+		return GetPostBySlug(db, req.Slug)
 	}
 
 	// Get more than 1 post with optional sort and limit parameters
